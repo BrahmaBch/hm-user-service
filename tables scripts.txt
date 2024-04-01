@@ -1,0 +1,59 @@
+-- Table: demo.pg_person
+
+-- DROP TABLE IF EXISTS demo.pg_person;
+
+CREATE TABLE IF NOT EXISTS demo.pg_person
+(
+    person_id bigint NOT NULL DEFAULT nextval('demo.pg_person_person_id_seq'::regclass),
+    age integer,
+    first_name character varying(255) COLLATE pg_catalog."default",
+    last_name character varying(255) COLLATE pg_catalog."default",
+    address_id bigint,
+    CONSTRAINT pg_person_pkey PRIMARY KEY (person_id),
+    CONSTRAINT fk4n5wijl95iyclhfwk2ccl97ey FOREIGN KEY (address_id)
+        REFERENCES demo.addresses (address_id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE IF EXISTS demo.pg_person
+    OWNER to postgres;
+
+-----------------------------------------------------------------------------
+-- Table: demo.addresses
+
+-- DROP TABLE IF EXISTS demo.addresses;
+
+CREATE TABLE IF NOT EXISTS demo.addresses
+(
+    address_id bigint NOT NULL DEFAULT nextval('demo.addresses_address_id_seq'::regclass),
+    city character varying(255) COLLATE pg_catalog."default",
+    street character varying(255) COLLATE pg_catalog."default",
+    CONSTRAINT addresses_pkey PRIMARY KEY (address_id)
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE IF EXISTS demo.addresses
+    OWNER to postgres;
+---------------------------------------------------------------------------
+-- Table: demo.room
+
+-- DROP TABLE IF EXISTS demo.room;
+
+CREATE TABLE IF NOT EXISTS demo.room
+(
+    room_id bigint NOT NULL DEFAULT nextval('demo.room_room_id_seq'::regclass),
+    booked_beds integer,
+    room_number integer,
+    room_status character varying(255) COLLATE pg_catalog."default",
+    total_beds integer,
+    CONSTRAINT room_pkey PRIMARY KEY (room_id)
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE IF EXISTS demo.room
+    OWNER to postgres;
