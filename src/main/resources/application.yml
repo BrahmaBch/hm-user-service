@@ -16,6 +16,20 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         jdbc:
           time-zone: UTC
+          
+#  :
+#    datasource:
+#      database: BookStore
+#      uri: mongodb://localhost:27017
+    #  mongodb://${MONGO_USERNAME}:${MONGO_PASSWORD}@${MONGO_HOST}:${MONGO_PORT}/${MONGO_DATABASE}?authSource=${MONGO_USERNAME}
+  data:
+    mongodb.host: localhost
+    mongodb.port: 27017
+    mongodb.database: BookStore
+  mongoconfig:
+    datasource:
+      database: BookStore
+      uri: mongodb://localhost:27017
   mvc:
     pathmatch:
       matching-strategy: ANT_PATH_MATCHER

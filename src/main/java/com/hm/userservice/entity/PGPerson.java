@@ -36,8 +36,12 @@ public class PGPerson {
 	private String firstName;
 	@Column(name = "last_name")
 	private String lastName;
-
-	@OneToOne(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+	/*
+	 * performing oneToOne unidirectional mapping 
+	 * the pg_person table has a foreign key column address_id that refers to the primary key column id of the addresses table. 
+	 *  there’s no reference to PGPerson in the Address class, thus the relationship is unidirectional.
+	 */
+	@OneToOne(cascade = CascadeType.ALL)
     @JoinColumn(name = "address_id", referencedColumnName = "address_id")
 	@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Address address;

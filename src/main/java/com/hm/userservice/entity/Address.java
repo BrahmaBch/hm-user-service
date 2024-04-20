@@ -30,7 +30,7 @@ public class Address {
     Long addressId;
     String street;
     String city;
-    @JsonIgnore
-    @OneToOne(mappedBy = "address")
-    PGPerson pgPerson;
+   // @JsonIgnore
+    //@OneToOne(mappedBy = "addresses")
+    //PGPerson pgPerson;
 }
