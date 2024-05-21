@@ -1,11 +1,19 @@
 package com.hm.userservice.service.impl;
 
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import javax.transaction.Transactional;
@@ -15,9 +23,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StopWatch;
 
 import com.hm.userservice.dao.PeopleRepository;
+import com.hm.userservice.entity.CreditCardEligibleMembers;
 import com.hm.userservice.entity.Eligibility;
 import com.hm.userservice.entity.People;
 import com.hm.userservice.service.PeopleService;
+import com.hm.userservice.task.CardEligiblePeopleInsertTask;
+import com.hm.userservice.task.PeopleBulkInsertResultTask;
+import com.hm.userservice.task.PeopleBulkInsertTask;
 import com.hm.userservice.task.PeopleUpdateTask;
 
 @Service("peopleService")
@@ -33,24 +45,39 @@ public class PeopleServiceImpl implements PeopleService {
 	public List<People> getAllPeople() {
 		try {
 			List<People> allPeople = dao.findAll();
+			System.out.println("all peoples : "+allPeople.size());
 			List<Eligibility> allEligibility = PeopleService.allEligibilityData;
+			System.out.println("eligibility List::::::::"+allEligibility.size());
 
-			// Filter allPeople based on loan amount and eligibility
-			List<People> allLoanEligibilPeopleData = allPeople.stream().filter(people -> {
-				// Check if there is any eligibility data for the loan amount of the person
-				return allEligibility.stream()
-						.anyMatch(eligibility -> people.getLoanAmmount().equals(eligibility.getLoanAmmount())
-								&& people.getLocation().equalsIgnoreCase(eligibility.getLocation())
-								&& people.getLoanEligibity().contentEquals(eligibility.getLoanEligibity())
-								&& null != people.getCreditCardEligibility() && people.getCreditCardEligibility() != 1);
-			}).collect(Collectors.toList()); // Collect the filtered People into a list
+			 List<People> allLoanEligibilPeopleData = new ArrayList<>();
 
+			 Map<Integer, String> peopleMap = new HashMap<>();
+		        // Loop through each person
+		        for (People people : allPeople) {
+		            boolean foundEligibility = false;
+		            // Check if there is any eligibility data for the loan amount of the person
+		            for (Eligibility eligibility : allEligibility) {
+		                if (people.getLoanAmmount().equals(eligibility.getLoanAmmount())
+		                        && people.getLocation().equalsIgnoreCase(eligibility.getLocation())
+		                        && people.getLoanEligibity().equals(eligibility.getLoanEligibity())
+		                        && people.getCreditCardEligibility() != null
+		                        && people.getCreditCardEligibility() != 1) {
+		                	peopleMap.put(people.getPeopleId(), people.getName());
+		                    foundEligibility = true;
+		                    break;
+		                }
+		            }
+		            if (foundEligibility) {
+		                // Update credit card eligibility
+		                people.setCreditCardEligibility(1);
+		                allLoanEligibilPeopleData.add(people);
+		            }
+		        }
+		        
+		        System.out.println("people map::::::::::   " + peopleMap);
+		    
 			if (null != allLoanEligibilPeopleData && allLoanEligibilPeopleData.size() > 0) {
-				System.out.println("update method called:::::::::::::::::::::::::::::::::::::");
-				System.out.println("before update list size ;;;;;; " + allLoanEligibilPeopleData.size());
 				updateCardEligibilPeoples(allLoanEligibilPeopleData);
-				System.out.println("after update the list size ;;;;;; " + allLoanEligibilPeopleData.size());
-				// updateCardEligibility(allLoanEligibilPeopleData);
 			} else {
 				System.out.println("no records forund...........");
 			}
@@ -62,20 +89,12 @@ public class PeopleServiceImpl implements PeopleService {
 	}
 
 	public void updateCardEligibilPeoples(List<People> allLoanEligibilPeopleData) {
-
-		List<People> peoplesList = new ArrayList<People>();
-
-		
-		  for (People people : allLoanEligibilPeopleData) {
-		  people.setCreditCardEligibility(1);
-		 // System.out.println(" udate card eligibility id : "+ people.getCreditCardEligibility() + " "+ people.getName());
-		  peoplesList.add(people); }
 		 
 		StopWatch timer = new StopWatch();
 		timer.start();
 		Integer totalObjects = allLoanEligibilPeopleData.size();
-		int batchSize = 30;
-		System.out.println("Stared updates into database table ::::::::::::::::::::::::::::::::::::::::::::::::");
+		int batchSize = 100;
+		System.out.println("Stared updates into database table ::::::::::::::::::::::::::::::::::::::::::::::::" + timer.getTotalTimeSeconds());
 		ExecutorService executor = Executors.newFixedThreadPool(20);
 		int batchNumber = 0;
 		List<PeopleUpdateTask> taskList = new ArrayList<PeopleUpdateTask>();
@@ -110,86 +129,90 @@ public class PeopleServiceImpl implements PeopleService {
 			}
 		}
 		executor.shutdown();
-		System.out.println("All Tasks Completed : " + executor.isTerminated() != null ? true: false);
-		boolean allTasksCompleted = executor.isTerminated() ? true: false;
-		System.out.println("All Tasks Completed : " + allTasksCompleted);
+		//shutdown();
+		//boolean allTasksCompleted = executor.isTerminated() ? true: false;
 		timer.stop();
 		System.out.println("Peoples Records updated Successfully in " + timer.getTotalTimeSeconds() + " Seconds for file ");
 	}
 
-	public void updateCardEligibility(List<People> allLoanEligibilPeopleData) {
-		// Determine the number of threads to use based on available processors
-		int numThreads = Runtime.getRuntime().availableProcessors();
-		System.out.println("number of threads : " + numThreads);
+	
+	// below code for Graceful shutdown
+	public void shutdown() {
+        ExecutorService executor = null;
+		executor.shutdown();
+        try {
+            if (!executor.awaitTermination(10, TimeUnit.SECONDS)) {
+                executor.shutdownNow();
+                if (!executor.awaitTermination(10, TimeUnit.SECONDS)) {
+                    System.err.println("Executor service did not terminate");
+                }
+            }
+        } catch (InterruptedException e) {
+            executor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+    }
 
-		// Create a fixed thread pool with the determined number of threads
-		ExecutorService executor = Executors.newFixedThreadPool(numThreads);
-
-		// Create a list to hold the futures for the tasks
-		List<Future<Void>> futures;
-
-		try {
-			// Submit update tasks to the executor and collect the futures
-			futures = executor.invokeAll(createUpdateTasks(allLoanEligibilPeopleData));
-
-			// Wait for all tasks to complete
-			for (Future<Void> future : futures) {
-				future.get(); // Wait for the task to complete
-			}
-		} catch (Exception e) {
-			e.printStackTrace();
-		} finally {
-			// Shutdown the executor after all tasks are completed
-			executor.shutdown();
-		}
-	}
-
-	private List<Callable<Void>> createUpdateTasks(List<People> allLoanEligibilPeopleData) {
-		int numThreads = Runtime.getRuntime().availableProcessors();
-		int batchSize = allLoanEligibilPeopleData.size() / numThreads;
-		System.out.println(" batches size : " + batchSize);
-		List<Callable<Void>> tasks = new ArrayList<>();
-
-		// Divide the list into equal parts for each thread
-		for (int i = 0; i < numThreads; i++) {
-			int startIndex = i * batchSize;
-			int endIndex = (i == numThreads - 1) ? allLoanEligibilPeopleData.size() : (i + 1) * batchSize;
-			List<People> sublist = allLoanEligibilPeopleData.subList(startIndex, endIndex);
-			System.out.println(" sublist size : " + sublist.size());
-			tasks.add(new UpdateTask(sublist, batchSize));
-		}
-
-		return tasks;
-	}
-
-	private class UpdateTask implements Callable<Void> {
-		private final List<People> peopleList;
-		private Integer batchSize;
-
-		public UpdateTask(List<People> peopleList, Integer batchSize) {
-			this.peopleList = peopleList;
-			this.batchSize = batchSize;
-		}
-
-		@Override
-		public Void call() {
+	@Override
+	@Transactional
+	public void updateCardEligibilPeoples(List<People> peopleList, int batchNumber) {
+		if (!peopleList.isEmpty()) {
 			try {
-				if (peopleList.size() > 0) {
-					peopleBulkService.updateCardEligibilPeoples(peopleList, batchSize);
-				}
+				peopleBulkService.updateCardEligibilPeoples(peopleList, batchNumber);
 			} catch (Exception e) {
+				System.out.println("Error while update Batch " + batchNumber + "!! " + e);
 			}
-			return null;
 		}
 	}
 
 	@Override
 	@Transactional
-	public void updateCardEligibilPeoples(List<People> peopleList, int batchNumber) {
-		try {
-			peopleBulkService.updateCardEligibilPeoples(peopleList, batchNumber);
-		} catch (Exception e) {
-			System.out.println("Error while update Batch " + batchNumber + "!! " + e);
+	public void bulkInsertCreditCardEligibleMembers(List<CreditCardEligibleMembers> creditCardEligibleMemborsList) {
+
+		if (!creditCardEligibleMemborsList.isEmpty()) {
+			try {
+				peopleBulkService.bulkInsertCreditCardEligibleMembers(creditCardEligibleMemborsList);
+			} catch (Exception e) {
+				System.out.println("Error while insert CreditCardEligibleMembers" + e);
+			}
 		}
+	
+		
 	}
+
+	public List<People> getGroupingPeople() {
+        List<People> allPeople = dao.findAll(); // Fetch all people from the repository
+
+        // Create a Callable task for bulk insert
+        Callable<PeopleBulkInsertResultTask> resultTask = new PeopleBulkInsertTask(dao, allPeople);
+
+        // Asynchronously execute the task
+        try {
+            PeopleBulkInsertResultTask result = resultTask.call(); // This will execute the task synchronously, you might want to execute it asynchronously
+            
+            Map<Long, List<People>> peoplesWithAccountIdMap = result.getPeoplesWithAccountIdMap();
+            saveCardEligibilePeoples(peoplesWithAccountIdMap);
+            return result.getPeopleList(); // Return the list of people from the result task
+        } catch (Exception e) {
+            e.printStackTrace(); // Handle exceptions properly in your application
+            return null; // Return null in case of any error
+        }
+    }
+	
+	public void saveCardEligibilePeoples(Map<Long, List<People>> peoplesWithAccountIdMap) {
+		// Create a thread pool
+        ExecutorService executor = Executors.newCachedThreadPool();
+
+        // Submit the task to the executor
+        try {
+            Future<Void> futureResult = executor.submit( new CardEligiblePeopleInsertTask(peoplesWithAccountIdMap,peopleBulkService));
+            // Wait for the task to complete
+            futureResult.get();
+        } catch (InterruptedException | ExecutionException e) {
+            e.printStackTrace(); // Handle exceptions properly in your application
+        } finally {
+            // Shutdown the executor service after task completion
+            executor.shutdown();
+        }
+    }
 }

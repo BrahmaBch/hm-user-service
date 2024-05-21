@@ -11,6 +11,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StopWatch;
 
+import com.hm.userservice.entity.CreditCardEligibleMembers;
+import com.hm.userservice.entity.CreditCardEligiblePeoples;
 import com.hm.userservice.entity.People;
 
 import lombok.extern.slf4j.Slf4j;
@@ -47,6 +49,58 @@ public class PeopleBulkServiceImpl {
 			}
 		});
 		timer.stop();
-		log.info("Batch " + batchNumber + "Finished in " + timer.getTotalTimeSeconds() + " For file ");
+		//log.info("Batch " + batchNumber + " Finished in " + timer.getTotalTimeSeconds());
+	}
+
+	@Transactional
+	public void bulkInsertCreditCardEligibleMembers(List<CreditCardEligibleMembers> creditCardEligibleMemborsList) {
+		String sql = "INSERT INTO demo.credit_card_eligible_members(account_id, card_number, loan_ammount, name) VALUES (?, ?, ?, ?)";
+
+		StopWatch timer = new StopWatch();
+		timer.start();
+		jdbcTemplate.batchUpdate(sql, new BatchPreparedStatementSetter() {
+			@Override
+			public void setValues(PreparedStatement ps, int i) throws SQLException {
+				CreditCardEligibleMembers model = creditCardEligibleMemborsList.get(i);
+				ps.setObject(1, model.getAccountId());
+				ps.setObject(2, model.getCardNumber());
+				ps.setObject(3, model.getLoanAmmount());
+				ps.setObject(4, model.getName());
+			}
+
+			@Override
+			public int getBatchSize() {
+				return creditCardEligibleMemborsList.size();
+			}
+		});
+		timer.stop();
+		//log.info("Batch Finished in " + timer.getTotalTimeSeconds() + " For file ");
+	
+	}
+	
+	@Transactional
+	public void bulkInsertCreditCardEligiblePeopls(List<CreditCardEligiblePeoples> creditCardEligiblePeopleList) {
+		String sql = "INSERT INTO demo.card_eligibility_people (account_id, people_id, credit_card_eligibility, name) VALUES (?, ?, ?, ?)";
+
+		StopWatch timer = new StopWatch();
+		timer.start();
+		jdbcTemplate.batchUpdate(sql, new BatchPreparedStatementSetter() {
+			@Override
+			public void setValues(PreparedStatement ps, int i) throws SQLException {
+				CreditCardEligiblePeoples model = creditCardEligiblePeopleList.get(i);
+				ps.setObject(1, model.getAccountId());
+				ps.setObject(2, model.getPeopleId());
+				ps.setObject(3, model.getCreditCardEligibility());
+				ps.setObject(4, model.getName());
+			}
+
+			@Override
+			public int getBatchSize() {
+				return creditCardEligiblePeopleList.size();
+			}
+		});
+		timer.stop();
+		//log.info("Batch Finished in " + timer.getTotalTimeSeconds() + " For file ");
+	
 	}
 }
