@@ -8,76 +8,80 @@ import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
 import com.hm.userservice.dao.PeopleRepository;
+import com.hm.userservice.entity.Eligibility;
 import com.hm.userservice.entity.People;
+import com.hm.userservice.mongoconfig.model.ViewEligibility;
+import com.hm.userservice.mongoconfig.service.ViewEligibilityService;
 
 public class PeopleBulkInsertTask implements Callable<PeopleBulkInsertResultTask> {
-	private final PeopleRepository dao;
-	private final List<People> peoplesList;
+    private final PeopleRepository dao;
+    private final List<People> peoplesList;
+    private final ViewEligibilityService eligibilityService; // Add this line
+    private final List<Eligibility> allEligibilityData; // Add this line
 
-	List<People> allPeople222 = null;
+    public PeopleBulkInsertTask(PeopleRepository dao, List<People> peoplesList, ViewEligibilityService eligibilityService, List<Eligibility> allEligibilityData) { // Modify this line
+        this.dao = dao;
+        this.peoplesList = peoplesList;
+        this.eligibilityService = eligibilityService; // Initialize eligibilityService
+        this.allEligibilityData = allEligibilityData; // Initialize allEligibilityData
+    }
 
-	public PeopleBulkInsertTask(PeopleRepository dao, List<People> peoplesList) {
-		this.dao = dao;
-		this.peoplesList = peoplesList;
-	}
+    @Override
+    public PeopleBulkInsertResultTask call() throws Exception {
+        // Fetching all People from repository
+        List<People> allPeople = peoplesList;
+        Map<Long, List<People>> peoplesWithAccountIdMap = new HashMap<>();
+        List<People> updatedPeopleList = new ArrayList<>();
+        Map<Integer, Long> accountIdPeopleIdMap = new HashMap<>();
+        Integer finalEligibilityId;
 
-	@Override
-	public PeopleBulkInsertResultTask call() throws Exception {
-		// Fetching all People from repository
-		List<People> allPeople = peoplesList;
-		Map<Long, List<People>> peoplesWithAccountIdMap = new HashMap<>();
-		List<People> updatedPeopleList = new ArrayList<>();
-		Map<Integer, Long> accountIdPeopleIdMap = new HashMap<>();
-		
-		
-		// Grouping People by accountId
-		Map<Long, List<People>> groupedPeoplesByAccountIdsMap = allPeople.stream()
-				.collect(Collectors.groupingBy(People::getAccountId));
+        // Grouping People by accountId
+        Map<Long, List<People>> groupedPeoplesByAccountIdsMap = allPeople.stream()
+                .collect(Collectors.groupingBy(People::getAccountId));
 
-		// Updating CreditCardEligibility for matching People
-		groupedPeoplesByAccountIdsMap.forEach((accountId, peopleList) -> {
-			boolean matched = peopleList.stream().anyMatch(pe -> pe.getLoanAmmount() == 200
-					&& "NO".equals(pe.getLoanEligibity()) && pe.getCreditCardEligibility() == 0);
+        // Updating CreditCardEligibility for matching People
+        groupedPeoplesByAccountIdsMap.forEach((accountId, peopleList) -> {
+            List<People> modifiedPeopleList = peopleList.stream()
+                    .map(people -> {
+                        try {
+                            Integer eligibilityId = null;
+                            ViewEligibility eligibility = eligibilityService.getEligibiltyByName(people.getName());
+                            if (eligibility != null) {
+                                eligibilityId = allEligibilityData.stream() // Changed to use allEligibilityData
+                                        .filter(aaa -> eligibility.getLocation().equals(aaa.getLocation()) && eligibility.getLoanAmount() == aaa.getLoanAmmount())
+                                        .map(Eligibility::getEligibilityId)
+                                        .findFirst()
+                                        .orElse(null);
+                                return people;
+                            }
+                            return people;
+                        } catch (Exception e) {
+                            // Handle any exceptions gracefully
+                            e.printStackTrace(); // You might want to log the exception instead
+                        }
+                        return null; // Return null if no match is found or an exception occurs
+                    })
+                    .filter(people -> people != null) // Filter out null entries
+                    .collect(Collectors.toList());
 
-			if (matched) {
-				peopleList.forEach(pe -> {
-					if(pe.getCreditCardEligibility() == 0) {
-						pe.setCreditCardEligibility(1);
-						updatedPeopleList.add(pe); // Add the updated person to the new list
-					    // Add the updated person to the map
-						 peoplesWithAccountIdMap.computeIfAbsent(pe.getAccountId(), k -> new ArrayList<>()).add(pe);
-						//accountIdPeopleIdMap.put(pe.getPeopleId(), accountId);
-						//accountIdPeopleIdMap.computeIfAbsent(pe.getPeopleId(), k -> accountId);
-					}
-				});
-				System.out.println("accountIdPeopleIdMap Size: "+accountIdPeopleIdMap.size());
-			} else {
-				updatedPeopleList.addAll(peopleList); // Add unmodified people to the new list
-			}
-		});
-		
-		
-		// Logging updated People information
-		/*
-		 * updatedPeopleList.forEach(pp -> { System.out.println("people: " +
-		 * pp.getPeopleId() + " CreditCardEligibility " + pp.getCreditCardEligibility()
-		 * + " LoanEligibity : " + pp.getLoanEligibity());
-		 * 
-		 * });
-		 */
-		//System.out.println("updatedPeopleList List Size :::::: " + updatedPeopleList.size());
+            if (modifiedPeopleList != null) {
+            	modifiedPeopleList.forEach(pe -> {
+                    if(pe.getCreditCardEligibility() == 0) {
+                        pe.setCreditCardEligibility(1);
+                        updatedPeopleList.add(pe); // Add the updated person to the new list
+                        // Add the updated person to the map
+                        peoplesWithAccountIdMap.computeIfAbsent(pe.getAccountId(), k -> new ArrayList<>()).add(pe);
+                        accountIdPeopleIdMap.put(pe.getPeopleId(), accountId);
+                    }
+                });
+                System.out.println("accountIdPeopleIdMap Size: "+accountIdPeopleIdMap.size());
+            } else {
+                updatedPeopleList.addAll(peopleList); // Add unmodified people to the new list
+            }
+        });
 
-		allPeople = updatedPeopleList;
-		/*
-		 * allPeople.forEach(p -> { // System.out.println("people: " + pp.getPeopleId()
-		 * + " CreditCardEligibility " // + pp.getCreditCardEligibility() +
-		 * " LoanEligibity : " + // pp.getLoanEligibity());
-		 * 
-		 * if (p.getLoanAmmount() == 200) {
-		 * System.out.println(">>>>>>>>>>>>>>>>>>>>>>>>>> " + p); } });
-		 */
+        allPeople = updatedPeopleList;
 
-		// System.out.println("allPeople List Size ::::: "+allPeople.size());
-		return new PeopleBulkInsertResultTask(allPeople, peoplesWithAccountIdMap);
-	}
+        return new PeopleBulkInsertResultTask(allPeople, peoplesWithAccountIdMap);
+    }
 }

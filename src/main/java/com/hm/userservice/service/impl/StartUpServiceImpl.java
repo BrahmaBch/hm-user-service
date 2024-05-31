@@ -17,7 +17,7 @@ public class StartUpServiceImpl implements StartUpService {
 	EligibilityRepository eligibilityDao;
 	
 	@Autowired
-	PeopleService peopleService;
+	static PeopleService peopleService;
 	
 	@Override
 	public void getAllEligibiltyData() {

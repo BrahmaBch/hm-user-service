@@ -26,6 +26,7 @@ import com.hm.userservice.dao.PeopleRepository;
 import com.hm.userservice.entity.CreditCardEligibleMembers;
 import com.hm.userservice.entity.Eligibility;
 import com.hm.userservice.entity.People;
+import com.hm.userservice.mongoconfig.service.ViewEligibilityService;
 import com.hm.userservice.service.PeopleService;
 import com.hm.userservice.task.CardEligiblePeopleInsertTask;
 import com.hm.userservice.task.PeopleBulkInsertResultTask;
@@ -40,6 +41,10 @@ public class PeopleServiceImpl implements PeopleService {
 
 	@Autowired
 	PeopleBulkServiceImpl peopleBulkService;
+	
+	@Autowired
+	private ViewEligibilityService eligibilityService; // Add this line
+    private List<Eligibility> allEligibilityData; // Add this line
 
 	@Override
 	public List<People> getAllPeople() {
@@ -183,8 +188,9 @@ public class PeopleServiceImpl implements PeopleService {
 	public List<People> getGroupingPeople() {
         List<People> allPeople = dao.findAll(); // Fetch all people from the repository
 
+        List<Eligibility> allEligibilityData = PeopleService.allEligibilityData;
         // Create a Callable task for bulk insert
-        Callable<PeopleBulkInsertResultTask> resultTask = new PeopleBulkInsertTask(dao, allPeople);
+        Callable<PeopleBulkInsertResultTask> resultTask = new PeopleBulkInsertTask(dao, allPeople, eligibilityService ,allEligibilityData);
 
         // Asynchronously execute the task
         try {
