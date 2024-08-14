@@ -33,3 +33,30 @@ spring:
   mvc:
     pathmatch:
       matching-strategy: ANT_PATH_MATCHER
+
+  mail:
+    host: smtp.office365.com
+    port: 587
+    username: ch.brahma@outlook.com
+    password: Brahma@1997#BBR
+    recipient: brahma.ch24@gmail.com
+    cc-recipient: xyz@gmail.com
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+          ssl:
+            trust: smtp.office365.com
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, metrics
+  endpoint:
+    health:
+      show-details: always
+    metrics:
+      enable:
+        all: true

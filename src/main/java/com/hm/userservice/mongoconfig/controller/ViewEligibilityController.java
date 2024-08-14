@@ -12,7 +12,7 @@ import com.hm.userservice.mongoconfig.model.ViewEligibility;
 import com.hm.userservice.mongoconfig.service.ViewEligibilityService;
 
 @RestController
-@RequestMapping("/mongoconfig/api/view-eligibility")
+@RequestMapping("/mongoconfig/view-eligibility/api")
 public class ViewEligibilityController {
 
 	@Autowired

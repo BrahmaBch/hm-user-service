@@ -21,7 +21,7 @@ import com.hm.userservice.mongoconfig.model.Book;
 import com.hm.userservice.mongoconfig.service.BookService;
 
 @RestController
-@RequestMapping("/mongoconfig/api/book")
+@RequestMapping("mongoconfig/book/api")
 public class BookController {
 
 	@Autowired

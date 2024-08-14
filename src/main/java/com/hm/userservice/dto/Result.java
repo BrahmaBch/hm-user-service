@@ -15,7 +15,10 @@ public class Result {
 		this.data = data;
 	}
 
-	public int getStatusCode() {
+    public Result(String invalid_data, String message) {
+    }
+
+    public int getStatusCode() {
 		return statusCode;
 	}
 
